@@ -1,9 +1,3 @@
-/*-----------------------------------------------------------
---------------------------------------------------------------
-if have question ,please contact 韩世豪  1336295654@qq.com---
--------------------------------------------------------------
------------------------------------------------------------*/
-
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -288,20 +282,25 @@ int main(int argc, char** argv)
 {
 
         std::thread measurement_process{process};
+        char* left_image_path = argv[1];
+        char* right_image_path = argv[2];
+        char* imu_path = argv[3];
+        //char* left_image_path = "/home/mso/Downloads/Dataset/Euroc/V1_01_easy/mav0/cam0/data";
+        //char* right_image_path = "/home/mso/Downloads/Dataset/Euroc/V1_01_easy/mav0/cam1/data";
+        //char* imu_path = "/home/mso/Downloads/Dataset/Euroc/V1_01_easy/mav0/imu0/data.csv";
 
-        char* left_image_path = "/media/teemos/Work/ubuntu/download/MH02/mav0/cam0/data";
-        char* right_image_path = "/media/teemos/Work/ubuntu/download/MH02/mav0/cam1/data";
-        char* imu_path = "/media/teemos/Work/ubuntu/download/MH02/mav0/imu0/data.txt";
-
+        char buf[1024];
+        
         vector<double> left_image_index = getFiles(left_image_path);// ..
         vector<double> right_image_index = getFiles(right_image_path);
         FILE *fp;
         fp = fopen(imu_path,"r");
+        fgets(buf, sizeof(buf), fp);
 
         double imu_time,last_imu_time;
         double acceleration[3],angular_v[3];
 
-        double time_count_left,time_count_right;
+        double time_count_left, time_count_right;
         int imu_seq = 1;  //..
         std::map<int,int> imu_big_interval;
         int fscanf_return;
@@ -309,13 +308,13 @@ int main(int argc, char** argv)
                     &imu_time,angular_v,angular_v+1,angular_v+2,acceleration,acceleration+1,acceleration+2);
         imu_time=imu_time*0.000000001;
         last_imu_time = imu_time;
+        std::cout<<imu_time<<std::endl;
 
         if (fscanf_return != 7)
         {
             std::cout << "1fscanf error " << std::endl;
             fclose(fp);
             return -1;
-
         }
 
         for(size_t i = 10; (i < left_image_index.size()-10)&&(i < right_image_index.size()-10) ;++i)

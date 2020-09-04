@@ -1,11 +1,4 @@
-﻿/*
- * COPYRIGHT AND PERMISSION NOTICE
- * Penn Software MSCKF_VIO
- * Copyright (C) 2017 The Trustees of the University of Pennsylvania
- * All rights reserved.
- */
-
-#include <iostream>
+﻿#include <iostream>
 #include <algorithm>
 #include <set>
 #include <Eigen/Dense>

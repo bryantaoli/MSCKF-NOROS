@@ -1,0 +1,21 @@
+#!/usr/bin/python3
+import tkinter as tk
+from tkinter import filedialog
+import os
+root = tk.Tk()
+root.withdraw()
+print('请选择mav0/cam0/data文件夹')
+Folderpathcam0 = filedialog.askdirectory() 
+print('请选择mav0/cam1/data文件夹')
+Folderpathcam1 = filedialog.askdirectory() 
+print('请选择mav0/imu0/data.csv文件')
+
+Filepathimu0 = filedialog.askopenfilename()  
+
+#print('Folderpath:',Folderpath)
+#print('Filepath:',Filepath)
+command = 'rm msckfvio.txt'
+os.system(command)
+
+command = './msckf_noros ' + Folderpathcam0 + ' ' + Folderpathcam1 + ' ' + Filepathimu0
+os.system(command)

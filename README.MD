@@ -1,6 +1,7 @@
 S-MSCKF去除ROS版本
 
-使用了boost，eigen,opencv库，方便交叉编译。
+在ubuntu系统下可运行，需要提前安装此系统；
+使用了boost，eigen, opencv库，方便交叉编译，故需要提前安装这些库。
 
 一 运行
 
@@ -18,7 +19,3 @@ S-MSCKF去除ROS版本
 3.去除了SuiteSparse(交叉编译起来很麻烦)
 
 4.注意typedef long long int FeatureIDType类型，arm下编译会有问题
-
-三
-
-if have question ,please contact 韩世豪  1336295654@qq.com

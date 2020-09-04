@@ -1,10 +1,3 @@
-/*
- * COPYRIGHT AND PERMISSION NOTICE
- * Penn Software MSCKF_VIO
- * Copyright (C) 2017 The Trustees of the University of Pennsylvania
- * All rights reserved.
- */
-
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -42,7 +35,7 @@ double Feature::observation_noise = 0.01;
 Feature::OptimizationConfig Feature::optimization_config;
 map<int, double> MsckfVio::chi_squared_test_table;
 //DEBUG HAN
-string MSCKF_RESULT_PATH="./msckfvio.csv";
+string MSCKF_RESULT_PATH="./msckfvio.txt";
 
 
 MsckfVio::MsckfVio():
@@ -297,7 +290,7 @@ void MsckfVio::featureCallback(
 
   publish(msg[0].first);
 
-  std::cout<<"whole time for state estimate"<<t_whole.toc()<<std::endl;
+  std::cout<<"whole time for state estimate:"<<t_whole.toc()<<std::endl;
   // Reset the system if necessary.
  
   return;
@@ -1250,10 +1243,10 @@ void MsckfVio::publish(const double& time) {
   foutC.close();
   std::cout.setf(std::ios::fixed, std::ios::floatfield);
   std::cout.precision(6);
-  std::cout<<"time"<<time<<"translation"<<imu_state.position.x() << " "
+  std::cout<<"time="<<time<<" translation="<<imu_state.position.x() << " "
         << imu_state.position.y() << " "
         << imu_state.position.z() << " "
-        <<"rotation"
+        <<" rotation="
         << Quaterniond(quaternionToRotation(imu_state.orientation).transpose()).x() << " "
         << Quaterniond(quaternionToRotation(imu_state.orientation).transpose()).y() << " "
         << Quaterniond(quaternionToRotation(imu_state.orientation).transpose()).z() << " "
