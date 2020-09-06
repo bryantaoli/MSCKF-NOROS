@@ -109,8 +109,8 @@ class MsckfVio {
      */
 
 
-    // Filter related functions
-    // Propogate the state
+    // Filter related functions 滤波相关函数
+    // Propogate the state 状态传递
     void batchImuProcessing(
         const double& time_bound);
     void processModel(const double& time,
@@ -120,11 +120,12 @@ class MsckfVio {
         const Eigen::Vector3d& gyro,
         const Eigen::Vector3d& acc);
 
-    // Measurement update
-    void stateAugmentation(const double& time);
-    void addFeatureObservations(const vector<pair<double, std::vector<Eigen::Matrix<double, 5, 1>>> > & msg);
+    // Measurement update 测量更新
+    void stateAugmentation(const double& time); //状态增广
+    void addFeatureObservations(const vector<pair<double, std::vector<Eigen::Matrix<double, 5, 1>>> > & msg);//增加特征点
     // This function is used to compute the measurement Jacobian
     // for a single feature observed at a single camera frame.
+    //该函数用于计算在单摄像机框架下观察到的单一特征的测量雅可比矩阵。
     void measurementJacobian(const StateIDType& cam_state_id,
         const FeatureIDType& feature_id,
         Eigen::Matrix<double, 4, 6>& H_x,
@@ -132,6 +133,7 @@ class MsckfVio {
         Eigen::Vector4d& r);
     // This function computes the Jacobian of all measurements viewed
     // in the given camera states of this feature.
+    ////此函数计算在此特征的给定摄像机状态下所观察到的所有测量值的雅可比矩阵。
     void featureJacobian(const FeatureIDType& feature_id,
         const std::vector<StateIDType>& cam_state_ids,
         Eigen::MatrixXd& H_x, Eigen::VectorXd& r);
@@ -174,6 +176,8 @@ class MsckfVio {
     // increaseing uncertainty will make the estimation unstable.
     // Note this online reset will be some dead-reckoning.
     // Set this threshold to nonpositive to disable online reset.
+    ////位置不确定阈值用于确定何时在线复位系统。否则，不确定性的不断增加会使估计不稳定。
+    //注意，这种在线重置将是一些死亡清算。将此阈值设置为非正值可禁用在线重置。
     double position_std_threshold;
 
     // Tracking rate

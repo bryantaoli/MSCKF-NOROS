@@ -10,6 +10,7 @@
 static boost::uint32_t first_seed_ = 0;
 
 /// Compute the first seed to be used; this function should be called only once
+//计算要使用的第一个种子;这个函数应该只调用一次
 static boost::uint32_t firstSeed(void)
 {
   boost::scoped_ptr<int> mem(new int());
@@ -23,6 +24,7 @@ static boost::uint32_t firstSeed(void)
 /// We use a different random number generator for the seeds of the
 /// Other random generators. The root seed is from the number of
 /// nano-seconds in the current time.
+//我们对其他随机生成器的种子使用不同的随机数生成器。根种子来自当前时间中的纳米秒数。
 static boost::uint32_t nextSeed(void)
 {
   static boost::mutex rngMutex;
@@ -46,12 +48,12 @@ random_numbers::RandomNumberGenerator::RandomNumberGenerator(void)
 random_numbers::RandomNumberGenerator::RandomNumberGenerator(boost::uint32_t seed)
   : generator_(seed), uniDist_(0, 1), normalDist_(0, 1), uni_(generator_, uniDist_), normal_(generator_, normalDist_)
 {
-  // Because we manually specified a seed, we need to save it ourselves
+  /// Because we manually specified a seed, we need to save it ourselves
+  //因为我们手动指定了一个种子，所以我们需要自己保存它
   first_seed_ = seed;
 }
 
-// From: "Uniform Random Rotations", Ken Shoemake, Graphics Gems III,
-//       pg. 124-132
+// From: "Uniform Random Rotations", Ken Shoemake, Graphics Gems III, pg. 124-132
 void random_numbers::RandomNumberGenerator::quaternion(double value[4])
 {
   double x0 = uni_();

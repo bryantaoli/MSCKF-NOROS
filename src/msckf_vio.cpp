@@ -182,19 +182,16 @@ bool MsckfVio::initialize() {
 void MsckfVio::imuCallback(
     const double timestamp, const Eigen::Vector3d& accl, const Eigen::Vector3d& gyro) {
 
-  // IMU msgs are pushed backed into a buffer instead of
-  // being processed immediately. The IMU msgs are processed
-  // when the next image is available, in which way, we can
-  // easily handle the transfer delay.
-   // std::cout<<"imutime="<<timestamp<<std::endl;
-
+    /// IMU msgs are pushed backed into a buffer instead of being processed immediately. The IMU msgs are processed
+    /// when the next image is available, in which way, we can easily handle the transfer delay. 
+    ///IMU消息被推回缓冲区，而不是立即处理。在有下一张图像时处理IMU消息，这样可以很容易地处理传输延迟。
     Eigen::Matrix<double, 6, 1> tempimu;
     tempimu<<accl[0],accl[1],accl[2],gyro[0],gyro[1],gyro[2];
     imubuffer.push_back(make_pair(timestamp,tempimu));
 
   if (!is_gravity_set) {
+    //至少静止200个imu数据才能很好的进行重力初始化
     if (imubuffer.size() < 200) return;
-    //if (imu_msg_buffer.size() < 10) return;
     std::cout<<"initial g"<<std::endl;
     initializeGravityAndBias();
     is_gravity_set = true;
@@ -205,7 +202,7 @@ void MsckfVio::imuCallback(
 //静止时候初始化重力方向，陀螺仪偏值，从重力坐标系到IMU坐标系
 void MsckfVio::initializeGravityAndBias() {
 
-  // Initialize gravity and gyro bias.
+  // Initialize gravity and gyro bias.初始化重力和陀螺偏差。
   Vector3d sum_angular_vel = Vector3d::Zero();
   Vector3d sum_linear_acc = Vector3d::Zero();
 
@@ -228,6 +225,7 @@ void MsckfVio::initializeGravityAndBias() {
 
   // Initialize the initial orientation, so that the estimation
   // is consistent with the inertial frame.
+  ////初始化初始方向，使估计值与惯性坐标系一致。
   double gravity_norm = gravity_imu.norm();
   IMUState::gravity = Vector3d(0.0, 0.0, -gravity_norm);
   //FromTwoVectors()是从第一个向量转到第二个向量
@@ -245,14 +243,15 @@ void MsckfVio::featureCallback(
     const vector<pair<double, std::vector<Eigen::Matrix<double, 5, 1>>> > & msg) {
 
   // Return if the gravity vector has not been set.
+  //如果重力向量没有设置，则返回。
   if (!is_gravity_set) return;
 
   cout << "==================================" << endl;
   cout << "start new state estimate" << endl;
   cout << "==================================" << endl;
   // Start the system if the first image is received.
-  // The frame where the first image is received will be
-  // the origin.
+  // The frame where the first image is received will be the origin.
+  ////如果接收到第一个图像，则启动系统。接收到第一张图像的帧将是原点。
   if (is_first_img) {
     is_first_img = false;
     state_server.imu_state.time = msg[0].first;
@@ -261,33 +260,30 @@ void MsckfVio::featureCallback(
 
 
   TicToc t_whole ; 
-  // Propogate the IMU state.
-  // that are received before the image msg.
-
+  // Propogate the IMU state that are received before the image msg.
+  //传播img消息收到前的imu状态
   batchImuProcessing(msg[0].first);
 
 
-  // Augment the state vector.
+  // Augment the state vector. 状态扩维
 
   stateAugmentation(msg[0].first);
 
 
-  // Add new observations for existing features or new
-  // features in the map server.
-
+  /// Add new observations for existing features or new features in the map server.
+  //为现有特性或地图服务器中的新特性添加新的观察结果
   addFeatureObservations(msg);
 
 
-  // Perform measurement update if necessary.
-
+  /// Perform measurement update if necessary.
+  //进行测量更新。  里面调用了measurementUpdate
   removeLostFeatures();
 
 
-
+  //如果相机状态超过30个，则剔除两个相机状态
   pruneCamStateBuffer();
 
   // Publish the odometry.
-
   publish(msg[0].first);
 
   std::cout<<"whole time for state estimate:"<<t_whole.toc()<<std::endl;
@@ -755,8 +751,8 @@ void MsckfVio::measurementUpdate(
 
   if (H.rows() == 0 || r.rows() == 0) return;
 
-  // Decompose the final Jacobian matrix to reduce computational
-  // complexity as in Equation (28), (29).
+  // Decompose the final Jacobian matrix to reduce computational complexity
+  // 分解最终雅可比矩阵，降低计算复杂度
   //H(l*(4M-3),21+6N)
   //r(l*(4M-3),21+6N)
   //1.QR分解
@@ -838,6 +834,7 @@ void MsckfVio::measurementUpdate(
   state_server.imu_state.t_cam0_imu += delta_x_imu.segment<3>(18);
 
   // Update the camera states.
+  // 更新相机状态。
   auto cam_state_iter = state_server.cam_states.begin();
   for (int i = 0; i < state_server.cam_states.size();
       ++i, ++cam_state_iter) {
@@ -856,13 +853,14 @@ void MsckfVio::measurementUpdate(
   state_server.state_cov = I_KH*state_server.state_cov;
 
   // Fix the covariance to be symmetric
+  // 确保协方差是对称的
   MatrixXd state_cov_fixed = (state_server.state_cov +
       state_server.state_cov.transpose()) / 2.0;
   state_server.state_cov = state_cov_fixed;
 
   return;
 }
-//???
+
 bool MsckfVio::gatingTest(
     const MatrixXd& H, const VectorXd& r, const int& dof) {
 
@@ -885,15 +883,16 @@ bool MsckfVio::gatingTest(
 
 void MsckfVio::removeLostFeatures() {
 
-  // Remove the features that lost track.
-  // BTW, find the size the final Jacobian matrix and residual vector.
+  // Remove the features that lost track. 
+  // BTW, find the size the final Jacobian matrix and residual vector. 
+  // 删除丢失的特征点,顺便求出最终雅可比矩阵和残差向量的大小
   int jacobian_row_size = 0;
   vector<FeatureIDType> invalid_feature_ids(0);
   vector<FeatureIDType> processed_feature_ids(0);
 
   for (auto iter = map_server.begin();
       iter != map_server.end(); ++iter) {
-    // Rename the feature to be checked.
+    // Rename the feature to be checked.重命名要检查的特征点。
     auto& feature = iter->second;
     //1.找到追踪不上的点，且剔除尺寸小于3的点
     // Pass the features that are still being tracked.
@@ -906,8 +905,8 @@ void MsckfVio::removeLostFeatures() {
       continue;
     }
 
-    // Check if the feature can be initialized if it
-    // has not been.
+    // Check if the feature can be initialized if it has not been.
+    //检查未被初始化的特征点是否可被初始化
     if (!feature.is_initialized) {
       if (!feature.checkMotion(state_server.cam_states)) {
         invalid_feature_ids.push_back(feature.id);
@@ -924,12 +923,8 @@ void MsckfVio::removeLostFeatures() {
     processed_feature_ids.push_back(feature.id);
   }
 
-  //cout << "invalid/processed feature #: " <<
-  //  invalid_feature_ids.size() << "/" <<
-  //  processed_feature_ids.size() << endl;
-  //cout << "jacobian row #: " << jacobian_row_size << endl;
-
   // Remove the features that do not have enough measurements.
+  // 删除没有足够测量的特征点。
   for (const auto& feature_id : invalid_feature_ids)
     map_server.erase(feature_id);
 
@@ -1031,6 +1026,7 @@ void MsckfVio::findRedundantCamStates(
 
   return;
 }
+
 //如果相机状态超过30个，则剔除两个相机状态
 void MsckfVio::pruneCamStateBuffer() {
 
@@ -1043,11 +1039,11 @@ void MsckfVio::pruneCamStateBuffer() {
   findRedundantCamStates(rm_cam_state_ids);
 
   // Find the size of the Jacobian matrix.
+  // 求雅可比矩阵的大小
   int jacobian_row_size = 0;
   for (auto& item : map_server) {
     auto& feature = item.second;
-    // Check how many camera states to be removed are associated
-    // with this feature.
+    // Check how many camera states to be removed are associated with this feature.
     //检查这个点中有几个将要被移除的相机状态
     vector<StateIDType> involved_cam_state_ids(0);
     for (const auto& cam_id : rm_cam_state_ids) {
@@ -1064,10 +1060,10 @@ void MsckfVio::pruneCamStateBuffer() {
     //如果特征点没有三角化，则也直接剔除
     if (!feature.is_initialized) {
       // Check if the feature can be initialize.
+      // 检查特征点是否可以初始化。
       if (!feature.checkMotion(state_server.cam_states)) {
-        // If the feature cannot be initialized, just remove
-        // the observations associated with the camera states
-        // to be removed.
+        // If the feature cannot be initialized, just remove the observations associated with the camera states to be removed.
+        // 如果特征点不能初始化，只需删除与相机状态相关的观测即可。
         for (const auto& cam_id : involved_cam_state_ids)
           feature.observations.erase(cam_id);
         continue;
@@ -1083,9 +1079,8 @@ void MsckfVio::pruneCamStateBuffer() {
     jacobian_row_size += 4*involved_cam_state_ids.size() - 3;
   }
 
-  //cout << "jacobian row #: " << jacobian_row_size << endl;
-
   // Compute the Jacobian and residual.
+  // 计算雅可比矩阵和残差。
   MatrixXd H_x = MatrixXd::Zero(jacobian_row_size,
       21+6*state_server.cam_states.size());
   VectorXd r = VectorXd::Zero(jacobian_row_size);
@@ -1093,8 +1088,8 @@ void MsckfVio::pruneCamStateBuffer() {
 
   for (auto& item : map_server) {
     auto& feature = item.second;
-    // Check how many camera states to be removed are associated
-    // with this feature.
+    // Check how many camera states to be removed are associated with this feature.
+    // 检查有多少相机状态要删除
     vector<StateIDType> involved_cam_state_ids(0);
     for (const auto& cam_id : rm_cam_state_ids) {
       if (feature.observations.find(cam_id) !=
@@ -1121,7 +1116,7 @@ void MsckfVio::pruneCamStateBuffer() {
   H_x.conservativeResize(stack_cntr, H_x.cols());
   r.conservativeResize(stack_cntr);
 
-  // Perform measurement update.
+  // 执行测量更新。
   measurementUpdate(H_x, r);
 
   for (const auto& cam_id : rm_cam_state_ids) {
@@ -1130,8 +1125,8 @@ void MsckfVio::pruneCamStateBuffer() {
     int cam_state_start = 21 + 6*cam_sequence;
     int cam_state_end = cam_state_start + 6;
 
-    // Remove the corresponding rows and columns in the state
-    // covariance matrix.
+    // Remove the corresponding rows and columns in the state covariance matrix.
+    // 删除状态协方差矩阵中对应的行和列。
     if (cam_state_end < state_server.state_cov.rows()) {
       state_server.state_cov.block(cam_state_start, 0,
           state_server.state_cov.rows()-cam_state_end,
@@ -1155,6 +1150,7 @@ void MsckfVio::pruneCamStateBuffer() {
     }
 
     // Remove this camera state in the state vector.
+    // 在状态向量中移除这个摄像机状态。
     state_server.cam_states.erase(cam_id);
   }
 
@@ -1163,13 +1159,12 @@ void MsckfVio::pruneCamStateBuffer() {
 
 void MsckfVio::onlineReset() {
 
-  // Never perform online reset if position std threshold
-  // is non-positive.
-  //if (position_std_threshold <= 0) return;
+  // Never perform online reset if position std threshold is non-positive.
+  // 如果位置std阈值是非正的，不要执行在线重置。
   static long long int online_reset_counter = 0;
 
-  // Check the uncertainty of positions to determine if
-  // the system can be reset.
+  // Check the uncertainty of positions to determine if the system can be reset.
+  // 检查位置的不确定度，确定系统是否可以复位。
   double position_x_std = std::sqrt(state_server.state_cov(12, 12));
   double position_y_std = std::sqrt(state_server.state_cov(13, 13));
   double position_z_std = std::sqrt(state_server.state_cov(14, 14));
@@ -1179,7 +1174,7 @@ void MsckfVio::onlineReset() {
       position_z_std < position_std_threshold) return;
 */
 
-  // Remove all existing camera states.
+  // Remove all existing camera states. 删除所有现有的相机状态。
   state_server.cam_states.clear();
 
   // Clear all exsiting features in the map.
@@ -1215,14 +1210,11 @@ std::cout<<"online reset"<<std::endl;
 
 void MsckfVio::publish(const double& time) {
 
-  // Convert the IMU frame to the body frame.
   const IMUState& imu_state = state_server.imu_state;
   Eigen::Isometry3d T_i_w = Eigen::Isometry3d::Identity();
   T_i_w.linear() = quaternionToRotation(
       imu_state.orientation).transpose();
   T_i_w.translation() = imu_state.position;
-
-  //DEBUG HAN
 
   std::ofstream foutC(MSCKF_RESULT_PATH, std::ios::app);
   foutC.setf(ios::fixed, ios::floatfield);

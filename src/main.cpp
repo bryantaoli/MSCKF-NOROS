@@ -29,10 +29,11 @@ std::condition_variable con;
 msckf_vio::ImageProcessor vio_msckf_frontend_;
 msckf_vio::MsckfVio vio_msckf_backend_;
 
-
-//get num in file name in sort from small to big
+//数据集的图像名字是时间戳(ns).png
+//从小到大排序得到文件名称中的num
 vector<double> getFiles(char* dirc){
     vector<string> files;
+    //dirent，LINUX系统下的一个头文件，在这个目录下/usr/include，为了获取某文件夹目录内容，所使用的结构体
     struct dirent *ptr;
     DIR *dir;
     dir = opendir(dirc);
@@ -44,7 +45,7 @@ vector<double> getFiles(char* dirc){
     }
 
     while((ptr = readdir(dir)) != NULL){
-        if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
+        if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///当前目录或当前的父目录
             continue;
         if(ptr->d_type == 8)//it;s file
         {
@@ -61,17 +62,12 @@ vector<double> getFiles(char* dirc){
     closedir(dir);
 
     vector<double> result;
-    for(int i=0;i < files.size();i++)
+    for(int i=0; i < files.size(); i++)
     {
         result.push_back(atof(files[i].c_str()));
     }
-    sort(result.begin(),result.end());
+    sort(result.begin(), result.end());
 
-   // for(size_t i = 0; i < result.size();++i){
-        //std::cout.setf(std::ios::fixed, std::ios::floatfield);
-        //std::cout.precision(20);
-        //cout << result[i] << endl;
-    //}
     return result;
 }
 
@@ -209,19 +205,29 @@ void process()
     while (true)
        {
 
+            //vector<pair<double,vector<Eigen::Vector3d>>>, vector<pair<double,vector<cv::Mat>
+            //
         std::vector<std::pair<vector<pair<double,vector<Eigen::Vector3d>> >, vector<pair<double,vector<cv::Mat>> > >> measurements;
+        
+        //一个用于多线程的锁
         std::unique_lock<std::mutex> lk(m_buf);
-
+        
         con.wait(lk, [&]
                  {
             return (measurements = getMeasurements()).size() != 0;
                  });
         lk.unlock();
-
+        
+        //measurement 是 std::pair<vector<pair<double,vector<Eigen::Vector3d>>>, vector<pair<double,vector<cv::Mat>>> >
         for (auto &measurement : measurements)
         {
+           //measurement.second是vector<pair<double,vector<cv::Mat>>
+           //measurement.second.front()是pair<double,vector<cv::Mat>
            auto img = measurement.second.front();
            double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
+
+           //measurement.first是vector<pair<double,vector<Eigen::Vector3d>>>
+           //imu_msg是vector<pair<double,vector<Eigen::Vector3d>>>的元素
            for (auto &imu_msg : measurement.first)
            {
                double t = imu_msg.first;
@@ -232,6 +238,8 @@ void process()
                        current_time = t;
                    double dt = t - current_time;
                    current_time = t;
+                   //imu_msg.second是vector<Eigen::Vector3d>
+                   //vector<Eigen::Vector3d>就包括两个元素，front是加速度计的，back是陀螺仪的
                    dx = imu_msg.second.front()[0];
                    dy = imu_msg.second.front()[1];
                    dz = imu_msg.second.front()[2];
@@ -250,6 +258,7 @@ void process()
                    double dt_1 = img_t - current_time;
                    double dt_2 = t - img_t;
                    current_time = img_t;
+                   //w1和w2分别是两个权重  做插值
                    double w1 = dt_2 / (dt_1 + dt_2);
                    double w2 = dt_1 / (dt_1 + dt_2);
                    dx = w1 * dx + w2 * imu_msg.second.front()[0];
@@ -258,20 +267,21 @@ void process()
                    rx = w1 * rx + w2 * imu_msg.second.back()[0];
                    ry = w1 * ry + w2 * imu_msg.second.back()[1];
                    rz = w1 * rz + w2 * imu_msg.second.back()[2];
+
+                   //图像处理的(前端):imuCallback
                    vio_msckf_frontend_.imuCallback(current_time,Eigen::Vector3d(dx, dy, dz), Eigen::Vector3d(rx, ry, rz));
+                   //MsckfVio的(后端):imuCallback
                    vio_msckf_backend_.imuCallback(current_time,Eigen::Vector3d(dx, dy, dz), Eigen::Vector3d(rx, ry, rz));
-                   //std::cout.setf(std::ios::fixed, std::ios::floatfield);
-                   //std::cout.precision(6);
-                   //cout<<"imu:"<<current_time<<endl;
                }
             }
            //cv::imshow("1",img.second.front());
-          // cv::waitKey(1);
+           //cv::waitKey(1);
            //std::cout.precision(6);
            //cout<<"imagetime"<<img.first<<endl;
           vector<pair<double, std::vector<Eigen::Matrix<double, 5, 1>>> >  tempmsckf_feature;
+          //图像处理的(前端):imgCallback
           tempmsckf_feature=vio_msckf_frontend_.stereoCallback(img.second.front(),img.second.back(),img.first);
-
+            
           vio_msckf_backend_.featureCallback(tempmsckf_feature);
 
         }
@@ -280,8 +290,14 @@ void process()
 
 int main(int argc, char** argv)
 {
-
+        //处理线程
         std::thread measurement_process{process};
+
+
+
+        //下面是文件读取
+
+        //左目.右目和imu的路径
         char* left_image_path = argv[1];
         char* right_image_path = argv[2];
         char* imu_path = argv[3];
@@ -295,6 +311,7 @@ int main(int argc, char** argv)
         vector<double> right_image_index = getFiles(right_image_path);
         FILE *fp;
         fp = fopen(imu_path,"r");
+        //imu第一行是头，跳过
         fgets(buf, sizeof(buf), fp);
 
         double imu_time,last_imu_time;
@@ -304,6 +321,7 @@ int main(int argc, char** argv)
         int imu_seq = 1;  //..
         std::map<int,int> imu_big_interval;
         int fscanf_return;
+        //读取imu,一行是7个double的数据
         fscanf_return = fscanf(fp,"%lf,%lf,%lf,%lf,%lf,%lf,%lf,",
                     &imu_time,angular_v,angular_v+1,angular_v+2,acceleration,acceleration+1,acceleration+2);
         imu_time=imu_time*0.000000001;
@@ -324,18 +342,17 @@ int main(int argc, char** argv)
                 break;
 
             ostringstream stringStream;
-            //转换左图
-            //cout<<left_image_index[i]<<endl;
+            //double转long long,把左图像名转成长整型
             unsigned long long left_image_index_=left_image_index[i];
 
 
             std::string left_filename =  string(left_image_path)+"/"+ to_string(left_image_index_)  + string(".png");///构造文件名
             //cout<<left_filename<<endl;
             cv::Mat left_image = cv::imread(left_filename,CV_LOAD_IMAGE_GRAYSCALE);
-            time_count_left = left_image_index[i]*0.000000001;
+            time_count_left = left_image_index[i]*0.000000001;//图名是ns，转成s
 
 
-            //转换右图
+            //double转long long,把右图像名转成长整型
             unsigned long long right_image_index_=right_image_index[i];
             std::string right_filename = string(right_image_path)+"/" + to_string(right_image_index_) + ".png";
             cv::Mat right_image = cv::imread(right_filename,CV_LOAD_IMAGE_GRAYSCALE);
@@ -345,7 +362,7 @@ int main(int argc, char** argv)
                   fclose(fp);
                   return -1;
               }
-            time_count_right = right_image_index[i]*0.000000001;
+            time_count_right = right_image_index[i]*0.000000001;//图名是ns，转成s
 
             if(time_count_left != time_count_right)
             {
@@ -354,6 +371,7 @@ int main(int argc, char** argv)
                return -1;
             }
 
+            //当imu时间戳一直比左图时间戳小时，就一直读imu
             while (imu_time < left_image_index[i+1]*0.000000001)
             {
                 if(last_imu_time > imu_time)
@@ -375,6 +393,7 @@ int main(int argc, char** argv)
 
                 if(imu_time > last_imu_time)
                 {
+                    //把imu数据放入IMU这个queue里去
                     InputIMU(double(imu_time),acc0,gyro);
                     //std::cout.setf(std::ios::fixed, std::ios::floatfield);
                     //std::cout.precision(6);
@@ -401,11 +420,13 @@ int main(int argc, char** argv)
             }
             cv::Mat IMAGELEFT=left_image.clone();
             cv::Mat IMAGERIGHT=right_image.clone();
+            //把图像放到IMAGE这个queque中
             InputIMAGE(IMAGELEFT, IMAGERIGHT, time_count_left);
 
             //std::cout.setf(std::ios::fixed, std::ios::floatfield);
             //std::cout.precision(6);
             //std::cout << "result image stamp: " << time_count_left << std::endl;
+            //睡眠一会,等待process处理
             usleep(2000);
         }
 
